@@ -44,6 +44,8 @@ class RecorderActivity : AppCompatActivity() {
         }
         findViewById<View>(R.id.btn_stop).setOnClickListener {
             recordService?.releaseRecord()
+            unbindService(serviceConnection)
+            stopService(Intent(this, RecordService::class.java))
         }
     }
 

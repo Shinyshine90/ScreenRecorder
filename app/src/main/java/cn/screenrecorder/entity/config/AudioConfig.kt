@@ -1,4 +1,4 @@
-package cn.screenrecorder.config
+package cn.screenrecorder.entity.config
 
 import android.media.MediaRecorder
 
