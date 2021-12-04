@@ -3,7 +3,6 @@ package cn.screenrecorder
 import android.content.Context
 import android.content.Intent
 import android.hardware.display.DisplayManager
-import android.media.MediaRecorder
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Binder
@@ -14,12 +13,27 @@ import java.lang.Exception
 import java.text.SimpleDateFormat
 import java.util.*
 import android.os.Build
-import android.R
 import android.app.*
 
 import android.graphics.BitmapFactory
 import android.hardware.display.VirtualDisplay
+import android.media.*
+import java.io.FileOutputStream
+import kotlin.concurrent.thread
 
+/**
+setAudioSource()
+setVideoSource()
+setOutputFormat()
+setAudioEncoder()
+setVideoEncoder()
+setVideoSize()
+setVideoFrameRate()
+setVideoEncodingBitRate()
+setOutputFile()
+prepare()
+start()
+ */
 class RecordService : Service() {
 
     companion object {
@@ -28,28 +42,30 @@ class RecordService : Service() {
 
         private const val PARAM_CODE = "result_code"
 
-        private const val PARAM_DATA = "data"
+        private const val PARAM_PROJECTION_TOKEN = "media_projection_token"
 
-        fun create(ctx: Context, resultCode: Int, data: Intent) =
+        fun create(ctx: Context, resultCode: Int, token: Intent) =
             Intent(ctx, RecordService::class.java).apply {
                 putExtra(PARAM_CODE, resultCode)
-                putExtra(PARAM_DATA, data)
+                putExtra(PARAM_PROJECTION_TOKEN, token)
             }
     }
 
     private val screenWidth = 1080
 
-    private val screenHeight = 1920
+    private val screenHeight = 2280
 
-    private val virtualDpi = 4
+    private val virtualDpi = 5
 
-    private val recordFps = 60
+    private val frameRate = 30
 
     private var originIntent = Intent()
 
     private var mediaProjection: MediaProjection? = null
 
     private var mediaRecorder: MediaRecorder? = null
+
+    private var audioRecord: AudioRecord? = null
 
     private var virtualDisplay: VirtualDisplay? = null
 
@@ -84,15 +100,22 @@ class RecordService : Service() {
     fun startRecord() {
         mediaProjection = createProjection() ?: return
         mediaRecorder = createMediaRecorder()
+        audioRecord = createAudioRecorder()
         virtualDisplay = setupVirtualDisplay()
         mediaRecorder?.start()
+        audioRecord?.startRecording()
+        startRecordPcm()
     }
 
     fun releaseRecord() {
         stopForeground(true)
+        audioRecord?.stop()
+        audioRecord?.release()
         mediaRecorder?.stop()
+        mediaRecorder?.release()
         virtualDisplay?.release()
         mediaProjection?.stop()
+        audioRecord = null
         mediaRecorder = null
         mediaProjection = null
         virtualDisplay = null
@@ -100,8 +123,8 @@ class RecordService : Service() {
 
     private fun createProjection(): MediaProjection? {
         val resultCode = originIntent.getIntExtra(PARAM_CODE, Activity.RESULT_OK)
-        val data = originIntent.getParcelableExtra<Intent>(PARAM_DATA)
-        return data?.run {
+        val projectionToken = originIntent.getParcelableExtra<Intent>(PARAM_PROJECTION_TOKEN)
+        return projectionToken?.run {
             val protection = (getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager)
                 .getMediaProjection(resultCode, this)
             protection
@@ -109,22 +132,27 @@ class RecordService : Service() {
     }
 
     private fun createMediaRecorder(): MediaRecorder {
-        val formatter = SimpleDateFormat("yyyy-MM-dd-HH-mm-ss")
-        val curDate = Date(System.currentTimeMillis())
-        val curTime: String = formatter.format(curDate).replace(" ", "")
+        //不要调整配置顺序
         val mediaRecorder = MediaRecorder()
-        //audio
-        mediaRecorder.setAudioSource(MediaRecorder.AudioSource.CAMCORDER)
-        //video
+        //
+        mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC)
+        //
         mediaRecorder.setVideoSource(MediaRecorder.VideoSource.SURFACE)
+        //
         mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-        mediaRecorder.setOutputFile(File(getExternalFilesDir("records"), "$curTime.mp4").absolutePath)
-        mediaRecorder.setVideoSize(screenWidth, screenHeight)
-        mediaRecorder.setVideoEncodingBitRate(2000_000)
-        mediaRecorder.setVideoFrameRate(recordFps)
-
+        //
         mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.HE_AAC)
-        mediaRecorder.setVideoEncoder(MediaRecorder.VideoEncoder.MPEG_4_SP)
+        //
+        mediaRecorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264)
+        //
+        mediaRecorder.setVideoFrameRate(frameRate)
+        //尺寸
+        mediaRecorder.setVideoSize(screenWidth, screenHeight)
+        //比特率
+        mediaRecorder.setVideoEncodingBitRate(4_000_000)
+
+        //设置输出路径
+        mediaRecorder.setOutputFile(getOutputFile("mp4"))
         try {
             mediaRecorder.prepare()
         } catch (e: Exception) {
@@ -133,16 +161,66 @@ class RecordService : Service() {
         return mediaRecorder
     }
 
+    private fun createAudioRecorder(): AudioRecord? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            return null
+        }
+        val projection = mediaProjection ?: return null
+        val audioFormat = AudioFormat.Builder()
+            .setChannelMask(AudioFormat.CHANNEL_IN_MONO)
+            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+            .setSampleRate(44_100)
+            .build()
+        val captureConfig = AudioPlaybackCaptureConfiguration.Builder(projection)
+            .excludeUsage(AudioAttributes.USAGE_ASSISTANT)
+            .build()
+        return AudioRecord.Builder()
+            .setAudioFormat(audioFormat)
+            .setBufferSizeInBytes(AudioRecord.getMinBufferSize(
+                44_100, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT))
+            .setAudioPlaybackCaptureConfig(captureConfig)
+            .build()
+    }
+
     private fun setupVirtualDisplay(): VirtualDisplay? {
         val projection = mediaProjection
         val recorder = mediaRecorder
-
         return if (projection != null && recorder != null) {
             projection.createVirtualDisplay(
                 TAG, screenWidth, screenHeight, virtualDpi,
                 DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, recorder.surface, null, null
             )
         } else null
+    }
+
+    class ScreenRecordBinder(val service: RecordService) : Binder()
+
+    private fun startRecordPcm() {
+        val audioRecord = audioRecord ?: return
+        Thread {
+            Log.e(TAG, "createAudioRecorder: start", )
+            try {
+                val fos = FileOutputStream(getOutputFile("pcm"))
+                val byteArray = ByteArray(1024)
+                var length: Int
+                while (audioRecord.read(byteArray ,0, 1024).apply { length = this } > 0) {
+                    Log.e(TAG, "createAudioRecorder: write $length")
+                    fos.write(byteArray, 0 , length)
+                }
+            } catch (e:Exception) {
+                Log.e(TAG, "createAudioRecorder: ${e.message}")
+            }
+            Log.e(TAG, "createAudioRecorder: end", )
+        }.start()
+    }
+
+    private fun getOutputFile(format: String): String {
+        val formatter = SimpleDateFormat("yyyy-MM-dd-HH-mm-ss")
+        val curDate = Date(System.currentTimeMillis())
+        val date = formatter.format(curDate).replace(" ", "")
+        //设置路径前需要保证有夫目录
+        val parentDir = getExternalFilesDir("records")?.apply { mkdirs() }
+        return File(parentDir, "$date.$format").absolutePath
     }
 
     private fun createNotificationChannel() {
@@ -153,11 +231,11 @@ class RecordService : Service() {
             .setLargeIcon(
                 BitmapFactory.decodeResource(
                     this.resources,
-                    R.mipmap.sym_def_app_icon
+                    android.R.mipmap.sym_def_app_icon
                 )
             ) // 设置下拉列表中的图标(大图标)
             .setContentTitle("SMI InstantView") // 设置下拉列表里的标题
-            .setSmallIcon(R.mipmap.sym_def_app_icon) // 设置状态栏内的小图标
+            .setSmallIcon(android.R.mipmap.sym_def_app_icon) // 设置状态栏内的小图标
             .setContentText("is running......") // 设置上下文内容
             .setWhen(System.currentTimeMillis()) // 设置该通知发生的时间
 
@@ -180,6 +258,4 @@ class RecordService : Service() {
         notification.defaults = Notification.DEFAULT_SOUND //设置为默认的声音
         startForeground(110, notification)
     }
-
-    class ScreenRecordBinder(val service: RecordService) : Binder()
 }

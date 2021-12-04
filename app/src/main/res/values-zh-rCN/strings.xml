@@ -1,0 +1,6 @@
+<resources>
+	<string name="app_name">屏幕录制</string>
+	<string name="toolbar_title_records">录制作品</string>
+	<string name="settings_encode_title">编码设置</string>
+	<string name="settings_encode_subtitle">音视频录制配置</string>
+</resources>
