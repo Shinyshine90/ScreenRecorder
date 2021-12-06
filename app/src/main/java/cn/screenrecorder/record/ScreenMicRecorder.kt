@@ -4,13 +4,11 @@ import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
 import android.media.MediaRecorder
 import android.media.projection.MediaProjection
-import android.util.Log
 import java.io.File
-import java.lang.Exception
 
 /**
  * 屏幕 & 麦克风录制
- *
+ * MediaRecorder config in following order：
  * setAudioSource()
  * setVideoSource()
  * setOutputFormat()
@@ -91,21 +89,7 @@ class ScreenMicRecorder(
         return projectionRetriever().createVirtualDisplay(
             TAG, screenWidth, screenHeight, virtualDpi,
             DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, mediaRecorder.surface,
-            object : VirtualDisplay.Callback() {
-                override fun onPaused() {
-                    super.onPaused()
-                    Log.e(TAG, "onPaused: " )
-                }
-
-                override fun onResumed() {
-                    super.onResumed()
-                    Log.e(TAG, "onResumed: " )
-                }
-
-                override fun onStopped() {
-                    super.onStopped()
-                    Log.e(TAG, "onStopped: " )
-                } }, null
+            null, null
         )
     }
 

@@ -9,6 +9,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
 
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -16,7 +17,7 @@ class MainActivity : AppCompatActivity() {
         binding.toolBar.setNavigationOnClickListener {
             binding.drawerLayout.openDrawer(binding.navigation)
         }
-
         startActivity(Intent(this, RecorderActivity::class.java))
     }
+
 }

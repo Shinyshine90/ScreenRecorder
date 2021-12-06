@@ -10,12 +10,16 @@ import android.util.Log
 import java.io.File
 import android.os.Build
 import android.app.*
+import android.os.SystemClock
 import cn.screenrecorder.entity.MediaOutputs
 import cn.screenrecorder.entity.generate
 import cn.screenrecorder.notification.createForegroundNotification
 import cn.screenrecorder.record.PlaybackRecorder
 import cn.screenrecorder.record.ScreenMicRecorder
 
+/**
+ * 录制服务，通过MediaProjection Api 录制屏幕、Mic、应用内音频
+ */
 class RecordService : Service() {
 
     companion object {
@@ -92,6 +96,7 @@ class RecordService : Service() {
     }
 
     private fun prepare(projection: MediaProjection) {
+        val stamp = SystemClock.elapsedRealtime()
         mediaProjection = projection
         //生成文件列表
         mediaOutputs.generate(this)
@@ -110,16 +115,20 @@ class RecordService : Service() {
             )
             playbackRecorder.prepare()
         }
+        Log.e(TAG, "prepare: cost ${SystemClock.elapsedRealtime() - stamp}")
     }
 
     fun startRecord() {
+        val stamp = SystemClock.elapsedRealtime()
         screenMicRecorder.start()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             playbackRecorder.start()
         }
+        Log.e(TAG, "startRecord: cost ${SystemClock.elapsedRealtime() - stamp}")
     }
 
     fun releaseRecord() {
+        val stamp = SystemClock.elapsedRealtime()
         stopForeground(true)
         mediaProjection.stop()
         screenMicRecorder.stop()
@@ -130,6 +139,7 @@ class RecordService : Service() {
                 release()
             }
         }
+        Log.e(TAG, "releaseRecord: cost ${SystemClock.elapsedRealtime() - stamp}")
     }
     class ScreenRecordBinder(val service: RecordService) : Binder()
 

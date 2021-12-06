@@ -1,7 +1,7 @@
 package cn.screenrecorder.entity
 
 import android.content.Context
-import cn.screenrecorder.io.outputDir
+import cn.screenrecorder.io.externalRecordDir
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
@@ -17,8 +17,8 @@ fun MediaOutputs.generate(context: Context) {
     val curDate = Date(System.currentTimeMillis())
     val date = formatter.format(curDate).replace(" ", "")
     //设置路径前需要保证有夫目录
-    val parentDir = context.outputDir()!!.apply { mkdirs() }
+    val parentDir = context.externalRecordDir()!!.apply { mkdirs() }
     mp4TempPath = parentDir.absolutePath + File.separator + date + "-temp.mp4"
-    accTempPath = parentDir.absolutePath + File.separator + date + "-temp.acc"
+    accTempPath = parentDir.absolutePath + File.separator + date + "-temp.aac"
     assembleOutputPath = parentDir.absolutePath + File.separator + date + ".mp4"
 }
