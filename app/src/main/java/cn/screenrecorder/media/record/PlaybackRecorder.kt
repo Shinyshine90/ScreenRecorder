@@ -1,4 +1,4 @@
-package cn.screenrecorder.record
+package cn.screenrecorder.media.record
 
 import android.media.*
 import android.media.projection.MediaProjection

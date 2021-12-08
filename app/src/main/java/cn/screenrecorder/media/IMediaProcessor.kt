@@ -1,7 +1,7 @@
-package cn.screenrecorder.record
+package cn.screenrecorder.media
 
 
-interface IMediaRecord {
+interface IMediaProcessor {
 
     fun prepare()
 

@@ -14,8 +14,8 @@ import android.os.SystemClock
 import cn.screenrecorder.entity.MediaOutputs
 import cn.screenrecorder.entity.generate
 import cn.screenrecorder.notification.createForegroundNotification
-import cn.screenrecorder.record.PlaybackRecorder
-import cn.screenrecorder.record.ScreenMicRecorder
+import cn.screenrecorder.media.record.PlaybackRecorder
+import cn.screenrecorder.media.record.ScreenMicRecorder
 
 /**
  * 录制服务，通过MediaProjection Api 录制屏幕、Mic、应用内音频

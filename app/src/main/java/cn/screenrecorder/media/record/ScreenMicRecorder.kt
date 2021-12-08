@@ -1,4 +1,4 @@
-package cn.screenrecorder.record
+package cn.screenrecorder.media.record
 
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
